@@ -2,6 +2,8 @@
 HoneyPot-Ngnix-K8s
 # HoneyKube - Dokumentacja Projektu
 
+bedzie to kontynuwoane beda testy jak to dziala 
+
 ## Opis projektu
 
 HoneyKube to system honeypot bazujący na Nginx, wdrażany w klastrze Kubernetes za pomocą Kind-Kind, z wykorzystaniem narzędzia DevBox do standaryzacji środowiska oraz Taskfile do automatyzacji zadań. Projekt pozwala na tworzenie, monitorowanie i analizę ataków na celowo podatny serwer web.
