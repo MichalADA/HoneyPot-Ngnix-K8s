@@ -1,0 +1,104 @@
+<group name="honeypot,">
+  <!-- Reguły przeznaczone do wykrywania ataków na honeypot -->
+  
+  <!-- Reguła bazowa dla wszystkich zdarzeń z honeypota -->
+  <rule id="100100" level="0">
+    <decoded_as>nginx</decoded_as>
+    <description>Honeypot Nginx access</description>
+  </rule>
+
+  <!-- Wykrywanie skanowania (wiele zapytań w krótkim czasie) -->
+  <rule id="100101" level="5">
+    <if_sid>100100</if_sid>
+    <same_source_ip />
+    <frequency>8</frequency>
+    <timeframe>30</timeframe>
+    <description>Honeypot: Possible scanning from IP $(srcip)</description>
+  </rule>
+
+  <!-- Wykrywanie prób dostępu do panelu administracyjnego -->
+  <rule id="100102" level="8">
+    <if_sid>100100</if_sid>
+    <url>/admin</url>
+    <description>Honeypot: Attempted access to admin panel from $(srcip)</description>
+  </rule>
+
+  <!-- Wykrywanie prób logowania do panelu administracyjnego -->
+  <rule id="100103" level="10">
+    <if_sid>100100</if_sid>
+    <url>/admin/login</url>
+    <method>POST</method>
+    <description>Honeypot: Login attempt to admin panel from $(srcip)</description>
+  </rule>
+
+  <!-- Wykrywanie prób dostępu do plików PHP -->
+  <rule id="100104" level="7">
+    <if_sid>100100</if_sid>
+    <match>.php</match>
+    <description>Honeypot: PHP file access attempt from $(srcip)</description>
+  </rule>
+
+  <!-- Wykrywanie prób dostępu do phpinfo -->
+  <rule id="100105" level="9">
+    <if_sid>100104</if_sid>
+    <match>phpinfo.php|info.php</match>
+    <description>Honeypot: PHP info access attempt from $(srcip)</description>
+  </rule>
+
+  <!-- Wykrywanie prób upload'u plików -->
+  <rule id="100106" level="12">
+    <if_sid>100100</if_sid>
+    <url>/uploads</url>
+    <method>PUT</method>
+    <description>Honeypot: File upload attempt from $(srcip)</description>
+  </rule>
+
+  <!-- Wykrywanie prób upload'u plików PHP (potencjalny backdoor) -->
+  <rule id="100107" level="15">
+    <if_sid>100106</if_sid>
+    <match>.php</match>
+    <description>Honeypot: PHP file upload attempt (possible backdoor) from $(srcip)</description>
+  </rule>
+
+  <!-- Wykrywanie skanowania katalogów (listowanie) -->
+  <rule id="100108" level="6">
+    <if_sid>100100</if_sid>
+    <url>/?</url>
+    <description>Honeypot: Directory listing attempt from $(srcip)</description>
+  </rule>
+
+  <!-- Wykrywanie prób wykorzystania podatności SQL Injection -->
+  <rule id="100109" level="14">
+    <if_sid>100100</if_sid>
+    <match>' OR 1=1|UNION SELECT|SELECT FROM|; DROP TABLE|INSERT INTO</match>
+    <description>Honeypot: SQL Injection attempt from $(srcip)</description>
+  </rule>
+
+  <!-- Wykrywanie prób wykorzystania XSS -->
+  <rule id="100110" level="13">
+    <if_sid>100100</if_sid>
+    <match><![CDATA[<script>|alert\(|onload=|onerror=|javascript:]]></match>
+    <description>Honeypot: XSS attack attempt from $(srcip)</description>
+  </rule>
+
+  <!-- Wykrywanie prób wykorzystania LFI/RFI -->
+  <rule id="100111" level="14">
+    <if_sid>100100</if_sid>
+    <match>../|/etc/passwd|/proc/self|file://|http://|https://|ftp://</match>
+    <description>Honeypot: LFI/RFI attack attempt from $(srcip)</description>
+  </rule>
+
+  <!-- Wykrywanie prób dostępu do plików konfiguracyjnych -->
+  <rule id="100112" level="11">
+    <if_sid>100100</if_sid>
+    <url>/config</url>
+    <description>Honeypot: Configuration files access attempt from $(srcip)</description>
+  </rule>
+
+  <!-- Wykrywanie prób wykonania komend systemowych -->
+  <rule id="100113" level="15">
+    <if_sid>100100</if_sid>
+    <match>; ls|; cat|; wget|; curl|; bash|; sh|; nc|; python|; perl|; ruby</match>
+    <description>Honeypot: System command execution attempt from $(srcip)</description>
+  </rule>
+</group>

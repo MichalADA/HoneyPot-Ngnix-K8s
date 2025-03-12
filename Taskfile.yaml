@@ -1,0 +1,150 @@
+version: '3'
+
+tasks:
+  # Zarządzanie strukturą projektu
+  init:
+    desc: Inicjalizuje strukturę katalogów projektu
+    cmds:
+      - mkdir -p k8s/honeypot
+      - mkdir -p k8s/monitoring
+      - mkdir -p config/nginx
+      - mkdir -p logs
+      - echo "Struktura projektu zainicjowana"
+
+  # Zarządzanie klastrem Kind
+  cluster:create:
+    desc: Tworzy lokalny klaster Kubernetes za pomocą Kind
+    cmds:
+      - kind create cluster --name honeypot-cluster
+      - kubectl cluster-info
+  
+  cluster:delete:
+    desc: Usuwa klaster Kubernetes
+    cmds:
+      - kind delete cluster --name honeypot-cluster
+
+  # Zarządzanie namespace'ami
+  namespace:create:
+    desc: Tworzy namespace'y potrzebne w projekcie
+    cmds:
+      - kubectl create namespace honeypot
+      - kubectl create namespace monitoring
+      - echo "Namespace'y utworzone"
+
+  # Zadania związane z Nginx Honeypot
+  honeypot:deploy:
+    desc: Wdraża Nginx Honeypot z pliku konfiguracyjnego
+    cmds:
+      - kubectl apply -f k8s/honeypot/nginx-honeypot.yaml
+      - echo "Nginx Honeypot wdrożony"
+  
+  honeypot:delete:
+    desc: Usuwa Nginx Honeypot
+    cmds:
+      - kubectl delete -f k8s/honeypot/nginx-honeypot.yaml
+      - echo "Nginx Honeypot usunięty"
+
+  # Monitorowanie
+  honeypot:expose:
+    desc: Udostępnia honeypot na lokalnym porcie
+    cmds:
+      - kubectl port-forward -n honeypot svc/nginx-honeypot 8080:80 &
+      - echo "Honeypot dostępny pod adresem http://localhost:8080"
+  
+  honeypot:logs:
+    desc: Pokazuje logi z honeypota
+    cmds:
+      - kubectl logs -n honeypot -l app=nginx-honeypot -f
+      
+  wazuh:expose:
+    desc: Udostępnia interfejs Wazuh na lokalnych portach
+    cmds:
+      - kubectl port-forward -n monitoring svc/wazuh-manager 55000:55000 &
+      - echo "Wazuh API dostępny pod adresem https://localhost:55000"
+
+  # Wazuh - system monitorowania
+  wazuh:deploy:
+    desc: Wdraża system monitorowania Wazuh
+    cmds:
+      - kubectl apply -f k8s/monitoring/wazuh.yaml
+      - echo "Wazuh wdrożony w namespace 'monitoring'"
+      - echo "Czekam na uruchomienie Wazuh Manager..."
+      - kubectl wait --for=condition=ready pod -l app=wazuh-manager -n monitoring --timeout=180s || true
+  
+  wazuh:delete:
+    desc: Usuwa system monitorowania Wazuh
+    cmds:
+      - kubectl delete -f k8s/monitoring/wazuh.yaml
+      - echo "Wazuh usunięty"
+      
+  wazuh:status:
+    desc: Sprawdza status komponentów Wazuh
+    cmds:
+      - echo "Status Wazuh Manager:"
+      - kubectl get pods -n monitoring -l app=wazuh-manager
+      - echo "Status Wazuh Agent:"
+      - kubectl get pods -n monitoring -l app=wazuh-agent
+
+  # Testowe ataki
+  test:scan:
+    desc: Symuluje podstawowy skan honeypota
+    cmds:
+      - echo "Symulacja skanowania honeypota..."
+      - curl -s http://localhost:8080/
+      - curl -s http://localhost:8080/admin/
+      - curl -s http://localhost:8080/phpinfo.php
+      - curl -s http://localhost:8080/config/
+      - curl -s http://localhost:8080/uploads/
+      - echo "Skan zakończony"
+  
+  test:attack:
+    desc: Symuluje próbę ataku na honeypot
+    cmds:
+      - echo "Symulacja próby ataku..."
+      - echo "<?php phpinfo(); ?>" > test.php
+      - curl -X PUT -d @test.php http://localhost:8080/uploads/test.php
+      - rm test.php
+      - echo "Symulacja ataku zakończona"
+      
+  check:ports:
+    desc: Sprawdza, jakie usługi działają na określonych portach
+    cmds:
+      - echo "Sprawdzanie portów..."
+      - lsof -i :8080 || echo "Brak usług na porcie 8080"
+      - lsof -i :55000 || echo "Brak usług na porcie 55000"
+
+  # Zbieranie wyników
+  logs:collect:
+    desc: Pobiera logi z honeypota do lokalnego katalogu
+    cmds:
+      - |
+        POD=$(kubectl get pods -n honeypot -l app=nginx-honeypot -o jsonpath='{.items[0].metadata.name}')
+        kubectl cp honeypot/$POD:/var/log/nginx/access.log logs/honeypot-access.log
+        kubectl cp honeypot/$POD:/var/log/nginx/error.log logs/honeypot-error.log
+      - echo "Logi zapisane w katalogu logs/"
+  
+  # Wdrażanie całego systemu
+  deploy:all:
+    desc: Wdraża wszystkie komponenty systemu
+    cmds:
+      - task cluster:create
+      - task namespace:create
+      - task honeypot:deploy
+      - task wazuh:deploy
+      - echo "System HoneyKube został wdrożony. Aby udostępnić usługi, uruchom:"
+      - echo "  - 'task honeypot:expose' dla dostępu do honeypota"
+      - echo "  - 'task wazuh:expose' dla dostępu do Wazuh"
+      
+  expose:all:
+    desc: Udostępnia wszystkie usługi na lokalnych portach
+    cmds:
+      - task honeypot:expose
+      - task wazuh:expose
+      - echo "Wszystkie usługi zostały udostępnione:"
+  # Usuwanie całego systemu
+  delete:all:
+    desc: Usuwa wszystkie komponenty systemu
+    cmds:
+      - task honeypot:delete
+      - task wazuh:delete
+      - echo "Komponenty systemu zostały usunięte. Aby usunąć klaster, uruchom 'task cluster:delete'"
